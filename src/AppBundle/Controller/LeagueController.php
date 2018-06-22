@@ -2,7 +2,7 @@
 
 namespace AppBundle\Controller;
 
-use AppBundle\Entity\Team;
+use AppBundle\Entity\League;
 use http\Env\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
@@ -14,21 +14,22 @@ use Symfony\Component\Serializer\Encoder\XmlEncoder;
 use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 use Symfony\Component\Serializer\Serializer;
 
-class TeamController extends Controller
+class LeagueController extends Controller
 {
+
     /**
-     * @return \Symfony\Component\HttpFoundation\JsonResponse
-     * @Route("/api/teams", name="team_list")
+     * @return \http\Env\Response
+     * @Route("/api/leagues", name="league_list")
      * @Method("GET")
      */
     public function list() {
-        $teams = $this->getDoctrine()->getRepository(Team::class)->findAll();
+        $leagues = $this->getDoctrine()->getRepository(League::class)->findAll();
         $arrayCollection = array();
 
-        foreach($teams as $team) {
+        foreach($leagues as $league) {
             $arrayCollection[] = array(
-                'id' => $team->getId(),
-                'name' => $team->getName()
+                'id' => $league->getId(),
+                'name' => $league->getName()
             );
         }
 
@@ -38,7 +39,7 @@ class TeamController extends Controller
     /**
      * @param $id
      * @return \Symfony\Component\HttpFoundation\Response
-     * @Route("/api/teams/{id}/", name="team_detail")
+     * @Route("/api/leagues/{id}/", name="league_detail")
      */
     public function show($id) {
 
@@ -48,7 +49,7 @@ class TeamController extends Controller
         $serializer = new Serializer($normalizers, $encoders);
         $team = $this->getDoctrine()
             ->getManager()
-            ->getRepository(Team::class)
+            ->getRepository(League::class)
             ->find($id);
         $jsonContent = $serializer->serialize($team, "json");
         return new JsonResponse(json_decode($jsonContent));
@@ -56,18 +57,19 @@ class TeamController extends Controller
 
     /**
      * @return \Symfony\Component\HttpFoundation\Response
-     * @Route("/api/teams", name="create_team")
+     * @Route("/api/leagues", name="create_league")
      * @Method("POST")
      */
-    public function create(){
+    public function create(Request $request){
 
-        $team = new Team();
-        $team->setName('Team 1');
+        $data = json_decode($request->getContent(), true);
+        $league = new League();
+        $league->setName($data['name']);
 
         $em = $this->getDoctrine()->getManager();
-        $em->persist($team);
+        $em->persist($league);
         $em->flush();
 
-        return new \Symfony\Component\HttpFoundation\Response('New Team Created', 201);
+        return new \Symfony\Component\HttpFoundation\Response('New League Created', 201);
     }
 }
