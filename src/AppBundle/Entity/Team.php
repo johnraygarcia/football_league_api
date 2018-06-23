@@ -3,6 +3,7 @@
 namespace AppBundle\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Team
@@ -29,11 +30,17 @@ class Team
     private $name;
 
     /**
-     * @var string|null
-     *
-     * @ORM\Column(name="strip", type="string", length=255, nullable=true)
-     */
+     * @ORM\OneToOne(targetEntity="Strip", fetch="EAGER")
+     * @ORM\JoinColumn(name="strip_id", referencedColumnName="id", onDelete="CASCADE")
+     * @Assert\File(mimeTypes={ "image/jpeg"})
+     **/
     private $strip;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="AppBundle\Entity\League", fetch="EAGER")
+     * @ORM\JoinColumn(onDelete="CASCADE")
+     **/
+    private $league;
 
 
     /**
@@ -71,26 +78,30 @@ class Team
     }
 
     /**
-     * Set strip.
-     *
-     * @param string|null $strip
-     *
-     * @return Team
+     * @return mixed
      */
-    public function setStrip($strip = null)
-    {
-        $this->strip = $strip;
-
-        return $this;
+    public function getStrip(){
+        return $this->strip;
     }
 
     /**
-     * Get strip.
-     *
-     * @return string|null
+     * @param mixed $strip
      */
-    public function getStrip()
-    {
-        return $this->strip;
+    public function setStrip($strip){
+        $this->strip = $strip;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getLeague(){
+        return $this->league;
+    }
+
+    /**
+     * @param mixed $league
+     */
+    public function setLeague($league){
+        $this->league = $league;
     }
 }

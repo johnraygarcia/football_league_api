@@ -1,8 +1,8 @@
-<?php
-
-namespace AppBundle\Controller;
+<?php namespace AppBundle\Controller;
 
 use AppBundle\Entity\League;
+use AppBundle\Entity\Team;
+use Doctrine\ORM\NoResultException;
 use http\Env\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
@@ -70,6 +70,61 @@ class LeagueController extends Controller
         $em->persist($league);
         $em->flush();
 
-        return new \Symfony\Component\HttpFoundation\Response('New League Created', 201);
+        return $this->redirect($this->generateUrl('league_detail', ["id" => $league->getId()]));
+    }
+
+    /**
+     * @return \http\Env\Response
+     * @Route("/api/league/{id}/teams", name="team_list_in_a_league")
+     * @Method("GET")
+     */
+    public function getTeamsInLeague($id) {
+
+        $encoders = array(new XmlEncoder(), new JsonEncoder());
+        $normalizers = array(new ObjectNormalizer());
+        $serializer = new Serializer($normalizers, $encoders);
+
+        $teams = $this->getDoctrine()
+            ->getManager()
+            ->createQuery('
+                SELECT t FROM ' . Team::class . ' t
+                JOIN t.league l
+                WHERE l.id=:leagueId')
+            ->setParameter('leagueId', $id)
+            ->getResult();
+        $arrayCollection = array();
+
+        if($teams) :
+            foreach($teams as $team) {
+                $arrayCollection[] = [
+                    'name' => $team->getName(),
+                    'strip' => json_decode($serializer
+                        ->serialize($team->getStrip(), "json"))
+                ];
+            }
+
+            return new JsonResponse($arrayCollection);
+        endif;
+
+        return new NoResultException("No teams");
+    }
+
+    /**
+     * @param $id
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @Route("/api/league/{id}", name="delete_league")
+     * @Method("DELETE")
+     */
+    public function delete($id) {
+
+        $em = $this->getDoctrine()
+            ->getManager();
+
+        $league = $em->getRepository(League::class)
+            ->findOneBy(["id"=>$id]);
+        $em->remove($league);
+        $em->flush();
+
+        return new \Symfony\Component\HttpFoundation\Response("League successfully deleted", 200);
     }
 }

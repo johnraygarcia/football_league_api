@@ -1,12 +1,16 @@
-<?php
+<?php namespace AppBundle\Controller;
 
-namespace AppBundle\Controller;
-
+use AppBundle\Entity\League;
+use AppBundle\Entity\Strip;
 use AppBundle\Entity\Team;
+use AppBundle\Form\StripType;
+use AppBundle\Form\TeamType;
 use http\Env\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
+use Symfony\Component\Form\Extension\HttpFoundation\HttpFoundationExtension;
+use Symfony\Component\Form\Forms;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Serializer\Encoder\JsonEncoder;
@@ -22,14 +26,23 @@ class TeamController extends Controller
      * @Method("GET")
      */
     public function list() {
-        $teams = $this->getDoctrine()->getRepository(Team::class)->findAll();
+
+        $encoders = array(new XmlEncoder(), new JsonEncoder());
+        $normalizers = array(new ObjectNormalizer());
+
+        $serializer = new Serializer($normalizers, $encoders);
+        $em = $this->getDoctrine()->getManager();
+        $teams = $em->getRepository(Team::class)->findAll();
         $arrayCollection = array();
 
         foreach($teams as $team) {
-            $arrayCollection[] = array(
-                'id' => $team->getId(),
-                'name' => $team->getName()
-            );
+            $arrayCollection[] = [
+                'name' => $team->getName(),
+                'strip' => json_decode($serializer
+                    ->serialize($team->getStrip(), "json")),
+                'league' => json_decode($serializer
+                    ->serialize($team->getLeague(), "json"))
+            ];
         }
 
         return new JsonResponse($arrayCollection);
@@ -59,15 +72,97 @@ class TeamController extends Controller
      * @Route("/api/teams", name="create_team")
      * @Method("POST")
      */
-    public function create(){
-
-        $team = new Team();
-        $team->setName('Team 1');
+    public function create(Request $request) {
 
         $em = $this->getDoctrine()->getManager();
+        $data = json_decode($request->getContent());
+        $leagueId = $data->league->id;
+
+        $league = $em->getRepository(League::class)
+            ->find($leagueId);
+
+        $team = new Team();
+        $team->setName($data->name)
+            ->setLeague($league);
+
+        $em->persist($league);
         $em->persist($team);
         $em->flush();
 
         return new \Symfony\Component\HttpFoundation\Response('New Team Created', 201);
+    }
+
+    /**
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @Route("/api/teams", name="update_team")
+     * @Method("PUT")
+     */
+    public function update(Request $request) {
+
+        $em = $this->getDoctrine()->getManager();
+        $data = json_decode($request->getContent());
+        $id = $data->id;
+        $managedTeam = $em->getRepository(Team::class)->find($id);
+        $leagueId = $data->league->id;
+        $league = $em->getRepository(League::class)
+            ->find($leagueId);
+        $managedTeam->setName($data->name)
+            ->setLeague($league);
+        $em->persist($league);
+        $em->persist($managedTeam);
+        $em->flush();
+
+        return $this->redirect($this->generateUrl('team_detail', ["id" => $managedTeam->getId()]));
+    }
+
+    /**
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @Route("/api/teams/strip", name="upload_team_strip")
+     * @Method("POST")
+     */
+    public function uploadStrip(Request $request){
+
+        //$id = $request->get("team_id");
+        $team = $this
+                ->getDoctrine()
+                ->getRepository(Team::class)
+                ->find($request->get("team_id"));
+
+        $strip = new Strip();
+
+        $form = $this->createForm(StripType::class, $strip);
+        $form->submit($request->request->all());
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $strip->setStrip($request->files->get('strip'));
+            $file = $strip->getStrip();
+
+            $fileName = $this->generateUniqueFileName().'.'.$file->guessExtension();
+
+            // moves the file to the directory where brochures are stored
+            $file->move(
+                $this->getParameter('strips_directory'),
+                $fileName
+            );
+
+            $em = $this->getDoctrine()->getManager();
+
+            $strip->setStrip($fileName);
+            $team->setStrip($strip);
+            $em->persist($strip);
+            $em->persist($team);
+
+            $em->flush();
+
+            return $this->redirect($this->generateUrl('team_detail', ["id" => $team->getId()]));
+        }
+    }
+
+    /**
+     * @return string
+     */
+    private function generateUniqueFileName()
+    {
+        return md5(uniqid());
     }
 }
