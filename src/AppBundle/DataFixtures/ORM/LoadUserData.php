@@ -1,13 +1,4 @@
-<?php
-/**
- * Created by PhpStorm.
- * User: johnraygarcia
- * Date: 24/06/2018
- * Time: 5:58 PM
- */
-
-namespace AppBundle\DataFixtures\ORM;
-
+<?php namespace AppBundle\DataFixtures\ORM;
 
 use AppBundle\Entity\User;
 use Doctrine\Common\DataFixtures\FixtureInterface;
