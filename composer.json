@@ -21,9 +21,11 @@
     },
     "require": {
         "php": ">=5.5.9",
+        "doctrine/doctrine-fixtures-bundle": "^3.0",
         "doctrine/doctrine-bundle": "^1.6",
         "doctrine/orm": "^2.5",
         "incenteev/composer-parameter-handler": "^2.0",
+        "lexik/jwt-authentication-bundle": "^2.4",
         "sensio/distribution-bundle": "^5.0.19",
         "sensio/framework-extra-bundle": "^5.1",
         "symfony/form": "^4.1",
@@ -36,7 +38,7 @@
     },
     "require-dev": {
         "sensio/generator-bundle": "^3.0",
-        "symfony/phpunit-bridge": "^3.0"
+        "symfony/phpunit-bridge": "*"
     },
     "scripts": {
         "symfony-scripts": [

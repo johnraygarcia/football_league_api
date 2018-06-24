@@ -8,6 +8,8 @@ use AppBundle\Form\TeamType;
 use http\Env\Response;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\Form\Extension\HttpFoundation\HttpFoundationExtension;
 use Symfony\Component\Form\Forms;
@@ -18,19 +20,33 @@ use Symfony\Component\Serializer\Encoder\XmlEncoder;
 use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 use Symfony\Component\Serializer\Serializer;
 
-class TeamController extends Controller
+/**
+ * @Security("is_anonymous() or is_authenticated()")
+ */
+class TeamController extends AbstractController
 {
+    /**
+     * @var Serializer
+     */
+    private $serializer;
+
+    /**
+     * TeamController constructor.
+     */
+    public function __construct(){
+
+        $this->serializer = new Serializer(
+            array(new ObjectNormalizer()),
+            array(new XmlEncoder(), new JsonEncoder()));
+    }
+
     /**
      * @return \Symfony\Component\HttpFoundation\JsonResponse
      * @Route("/api/teams", name="team_list")
      * @Method("GET")
      */
     public function list() {
-
-        $encoders = array(new XmlEncoder(), new JsonEncoder());
-        $normalizers = array(new ObjectNormalizer());
-
-        $serializer = new Serializer($normalizers, $encoders);
+        
         $em = $this->getDoctrine()->getManager();
         $teams = $em->getRepository(Team::class)->findAll();
         $arrayCollection = array();
@@ -38,9 +54,9 @@ class TeamController extends Controller
         foreach($teams as $team) {
             $arrayCollection[] = [
                 'name' => $team->getName(),
-                'strip' => json_decode($serializer
+                'strip' => json_decode($this->serializer
                     ->serialize($team->getStrip(), "json")),
-                'league' => json_decode($serializer
+                'league' => json_decode($this->serializer
                     ->serialize($team->getLeague(), "json"))
             ];
         }
@@ -55,15 +71,11 @@ class TeamController extends Controller
      */
     public function show($id) {
 
-        $encoders = array(new XmlEncoder(), new JsonEncoder());
-        $normalizers = array(new ObjectNormalizer());
-
-        $serializer = new Serializer($normalizers, $encoders);
         $team = $this->getDoctrine()
-            ->getManager()
-            ->getRepository(Team::class)
-            ->find($id);
-        $jsonContent = $serializer->serialize($team, "json");
+                    ->getManager()
+                    ->getRepository(Team::class)
+                    ->find($id);
+        $jsonContent = $this->serializer->serialize($team, "json");
         return new JsonResponse(json_decode($jsonContent));
     }
 
@@ -100,15 +112,17 @@ class TeamController extends Controller
     public function update(Request $request) {
 
         $em = $this->getDoctrine()->getManager();
-        $data = json_decode($request->getContent());
-        $id = $data->id;
+        $data = json_decode($request->getContent(), true);
+        $id = $data['id'];
         $managedTeam = $em->getRepository(Team::class)->find($id);
-        $leagueId = $data->league->id;
-        $league = $em->getRepository(League::class)
-            ->find($leagueId);
-        $managedTeam->setName($data->name)
-            ->setLeague($league);
-        $em->persist($league);
+        $managedTeam->setName($data['name']);
+        if(array_key_exists('league', $data)) {
+            $leagueId = $data['league']['id'];
+            $league = $em->getRepository(League::class)
+                ->find($leagueId);
+            $managedTeam->setLeague($league);
+        }
+
         $em->persist($managedTeam);
         $em->flush();
 
@@ -129,7 +143,6 @@ class TeamController extends Controller
                 ->find($request->get("team_id"));
 
         $strip = new Strip();
-
         $form = $this->createForm(StripType::class, $strip);
         $form->submit($request->request->all());
 
@@ -151,7 +164,6 @@ class TeamController extends Controller
             $team->setStrip($strip);
             $em->persist($strip);
             $em->persist($team);
-
             $em->flush();
 
             return $this->redirect($this->generateUrl('team_detail', ["id" => $team->getId()]));
