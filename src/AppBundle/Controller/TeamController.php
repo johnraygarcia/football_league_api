@@ -5,7 +5,9 @@ use AppBundle\Entity\Strip;
 use AppBundle\Entity\Team;
 use AppBundle\Form\StripType;
 use AppBundle\Form\TeamType;
-use http\Env\Response;
+use AppBundle\Service\FileUploader;
+use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
@@ -23,7 +25,7 @@ use Symfony\Component\Serializer\Serializer;
 /**
  * @Security("is_anonymous() or is_authenticated()")
  */
-class TeamController extends AbstractController
+class TeamController extends Controller
 {
     /**
      * @var Serializer
@@ -31,13 +33,29 @@ class TeamController extends AbstractController
     private $serializer;
 
     /**
-     * TeamController constructor.
+     * @var FileUploader
      */
-    public function __construct(){
+    private $fileUploader;
+
+    /**
+     * @var \Doctrine\ORM\EntityManager
+     */
+    private $entityManager;
+
+    /**
+     * TeamController constructor.
+     * @param \AppBundle\Service\FileUploader $fileUploader
+     */
+    public function __construct(
+        FileUploader $fileUploader,
+        EntityManagerInterface $entityManager
+    ){
 
         $this->serializer = new Serializer(
             array(new ObjectNormalizer()),
             array(new XmlEncoder(), new JsonEncoder()));
+        $this->fileUploader = $fileUploader;
+        $this->entityManager = $entityManager;
     }
 
     /**
@@ -46,8 +64,8 @@ class TeamController extends AbstractController
      * @Method("GET")
      */
     public function list() {
-        
-        $em = $this->getDoctrine()->getManager();
+
+        $em = $this->entityManager;
         $teams = $em->getRepository(Team::class)->findAll();
         $arrayCollection = array();
 
@@ -71,8 +89,8 @@ class TeamController extends AbstractController
      */
     public function show($id) {
 
-        $team = $this->getDoctrine()
-                    ->getManager()
+        $team = $this
+                    ->entityManager
                     ->getRepository(Team::class)
                     ->find($id);
         $jsonContent = $this->serializer->serialize($team, "json");
@@ -86,20 +104,20 @@ class TeamController extends AbstractController
      */
     public function create(Request $request) {
 
-        $em = $this->getDoctrine()->getManager();
         $data = json_decode($request->getContent());
         $leagueId = $data->league->id;
 
-        $league = $em->getRepository(League::class)
+        $league = $this->entityManager
+            ->getRepository(League::class)
             ->find($leagueId);
 
         $team = new Team();
         $team->setName($data->name)
             ->setLeague($league);
 
-        $em->persist($league);
-        $em->persist($team);
-        $em->flush();
+        $this->entityManager->persist($league);
+        $this->entityManager->persist($team);
+        $this->entityManager->flush();
 
         return new \Symfony\Component\HttpFoundation\Response('New Team Created', 201);
     }
@@ -111,20 +129,21 @@ class TeamController extends AbstractController
      */
     public function update(Request $request) {
 
-        $em = $this->getDoctrine()->getManager();
+
         $data = json_decode($request->getContent(), true);
         $id = $data['id'];
-        $managedTeam = $em->getRepository(Team::class)->find($id);
+        $managedTeam = $this->entityManager
+            ->getRepository(Team::class)->find($id);
         $managedTeam->setName($data['name']);
         if(array_key_exists('league', $data)) {
             $leagueId = $data['league']['id'];
-            $league = $em->getRepository(League::class)
+            $league = $this->entityManager->getRepository(League::class)
                 ->find($leagueId);
             $managedTeam->setLeague($league);
         }
 
-        $em->persist($managedTeam);
-        $em->flush();
+        $this->entityManager->persist($managedTeam);
+        $this->entityManager->flush();
 
         return $this->redirect($this->generateUrl('team_detail', ["id" => $managedTeam->getId()]));
     }
@@ -136,7 +155,6 @@ class TeamController extends AbstractController
      */
     public function uploadStrip(Request $request){
 
-        //$id = $request->get("team_id");
         $team = $this
                 ->getDoctrine()
                 ->getRepository(Team::class)
@@ -147,20 +165,13 @@ class TeamController extends AbstractController
         $form->submit($request->request->all());
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $strip->setStrip($request->files->get('strip'));
-            $file = $strip->getStrip();
 
-            $fileName = $this->generateUniqueFileName().'.'.$file->guessExtension();
+            $file = $request->files->get('strip');
+            $targetDir = $this->getParameter('strips_directory');
+            $fileName = $this->fileUploader->upload($file, $targetDir);
 
-            // moves the file to the directory where brochures are stored
-            $file->move(
-                $this->getParameter('strips_directory'),
-                $fileName
-            );
-
-            $em = $this->getDoctrine()->getManager();
-
-            $strip->setStrip($fileName);
+            $em = $this->entityManager;
+            $strip->setStrip('/uploads/strips/'. $fileName);
             $team->setStrip($strip);
             $em->persist($strip);
             $em->persist($team);

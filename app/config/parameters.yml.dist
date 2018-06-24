@@ -21,3 +21,4 @@ parameters:
     jwt_public_key_path:  '%kernel.root_dir%/../config/jwt/public.pem'
     jwt_key_pass_phrase:  'secret'
     jwt_token_ttl:        3600
+    strips_directory: '%kernel.project_dir%/web/uploads/strips'
